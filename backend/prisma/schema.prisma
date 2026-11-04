@@ -1,0 +1,85 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url = env("DATABASE_URL")
+}
+
+enum Role {
+    ADMIN
+    CASHIER
+}
+
+enum PaymentMethod {
+    CASH
+    MIDTRANS
+}
+
+enum PaymentStatus {
+    PENDING
+    PAID
+    FAILED
+}
+
+model User {
+    id String @id @default(uuid())
+    name String
+    email String @unique
+    password String
+    role Role @default(CASHIER)
+    orders Order[]
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
+model Category {
+    id String @id @default(uuid())
+    name String @unique
+    products Product[]
+    createdAt DateTime @default(now())
+    updateAt DateTime @updatedAt
+}
+
+model Product {
+    id String @id @default(uuid())
+    name String
+    price Int
+    stock Int @default(0)
+    imageUrl String?
+    isAvailable Boolean @default(true)
+    categoryId String
+    category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+    orderItem OrderItem[]
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
+model Order {
+    id String @id @default(uuid())
+    orderNumber String @unique
+    customerName String?
+    totalAmount Int
+    paymentMethod PaymentMethod @default(CASH)
+    paymentStatus PaymentStatus @default(PENDING)
+    snapToken String?
+    amountPaid Int?
+    changeAmount Int?
+    cashierId String
+    cashier User @relation(fields: [cashierId], references: [id])
+    items OrderItem[]
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
+model OrderItem {
+    id String @id @default(uuid())
+    orderId String
+    order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+    productId String
+    product Product @relation(fields: [productId], references: [id])
+    quantity Int
+    priceAtTime Int
+    subtotal Int
+}

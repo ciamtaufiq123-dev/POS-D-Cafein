@@ -1,0 +1,22 @@
+# Abaikan semua node_modules di backend maupun frontend
+node_modules/
+**/node_modules/
+
+# Abaikan semua file .env di backend maupun frontend
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Abaikan hasil build
+dist/
+**/dist/
+
+# Abaikan foto hasil tes upload di backend (kecuali .gitkeep)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# File sistem/log
+*.log
+.DS_Store
+Thumbs.db

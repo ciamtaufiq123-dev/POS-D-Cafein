@@ -6,7 +6,7 @@ const JWT_SECRET =process.env.JWT_SECRET || 'rahasia_super_aman_pos_dcafein_2026
 
 export const authenticate = (req: Request, res: Response, next:NextFunction): void  => {
     const authHeader = req.headers.authorization;
-    if (!authHeader || authHeader.startsWith('Bearer ')) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
         res.status(401).json({ message: 'Unauthorized: Token tidak ditemukan'});
         return;
     }

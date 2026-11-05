@@ -248,12 +248,12 @@ export const getDashboardSummary = async(_req: Request, res: Response): Promise<
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
         const sevenDaysAgo = new Date(startOfToday);
-        sevenDaysAgo.setDate(sevenDaysAgo.getDay() - 6);
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
         const paidOrders = await prisma.order.findMany({
             where: {
                 paymentStatus: 'PAID',
-                ceratedAt: { gte: sevenDaysAgo },
+                createdAt: { gte: sevenDaysAgo },
             },
             include: { items: true },
         });
@@ -266,9 +266,9 @@ export const getDashboardSummary = async(_req: Request, res: Response): Promise<
         const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
         const revenueChart = Array.from({ length: 7}).map((_, index) => {
             const targetDate = new Date(sevenDaysAgo);
-            targetDate.setDate(sevenDaysAgo.getDay() + index);
+            targetDate.setDate(sevenDaysAgo.getDate() + index);
             const nextDate = new Date(targetDate);
-            nextDate.setDate(targetDate.getDay() + 1);
+            nextDate.setDate(targetDate.getDate() + 1);
 
             const dailyTotal = paidOrders
             .filter((o) => o.createdAt >= targetDate && o.createdAt < nextDate)

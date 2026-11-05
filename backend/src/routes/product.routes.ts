@@ -13,7 +13,7 @@ import { productSchema } from '../schemas/product.schema';
 
 const router = Router();
 
-router.get('/catgories', authenticate, getCategories);
+router.get('/categories', authenticate, getCategories);
 router.get('/', authenticate, getProducts);
 
 router.post(

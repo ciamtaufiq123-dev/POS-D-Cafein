@@ -20,7 +20,7 @@ export const formatDateTime = (dateString: string): string => {
     }).format(date);
 };
 
-export const getProductImageUrl = (imageUrl: string | null | undefined): string | null => {
+export const getImageUrl = (imageUrl: string | null | undefined): string | null => {
     if (!imageUrl) return null;
     if (imageUrl.startsWith('http')) return imageUrl;
     return `${BACKEND_URL}${imageUrl}`;

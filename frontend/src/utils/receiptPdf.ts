@@ -42,14 +42,15 @@ export const downloadReceiptPdf = (order: Order): void => {
     y += 5;
     order.items?.forEach((item) => {
         const productName = item.product?.name || 'Produk Menu';
-        const subtotal = item.price * item.quantity
+        const itemPrice = item.priceAtTime;
+        const subtotal = item.subtotal;
 
         doc.setFont('helvetica', 'bold');
         doc.text(productName, 5, y);
         y += 4;
 
         doc.setFont('helvetica', 'normal');
-        doc.text(`${item.quantity} x ${formatRupiah(item.price)}`, 5, y);
+        doc.text(`${item.quantity} x ${formatRupiah(itemPrice)}`, 5, y);
         doc.text(formatRupiah(subtotal), 75, y, { align: 'right' });
         y += 5;
     });

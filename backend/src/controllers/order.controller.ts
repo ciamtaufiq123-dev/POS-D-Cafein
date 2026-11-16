@@ -2,16 +2,7 @@ import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/db';
 import { CreateOrderInput } from '../schemas/order.schema';
-
-const midtransClient = require('midtrans-client')
-
-const getSnapClient = () => {
-    return new midtransClient.Snap({
-        isProduction: false,
-        serverKey: process.env.MIDTRANS_SERVER_KEY || '',
-        clientKey: process.env.MIDTRANS_CLIENT_KEY || '',
-    });
-};
+import { snap } from '../utils/midtrans';
 
 export const createOrder = async (req: Request, res: Response ): Promise<void> => {
     try {
@@ -113,8 +104,6 @@ export const createOrder = async (req: Request, res: Response ): Promise<void> =
             });
             return;
         }
-
-        const snap = getSnapClient();
         const parameter = {
             transaction_details: {
                 order_id: orderNumber,
@@ -129,6 +118,11 @@ export const createOrder = async (req: Request, res: Response ): Promise<void> =
                 quantity: item.quantity,
                 name: item.name.substring(0, 50)
             })),
+            callbacks: {
+                finish: 'http://localhost:5173/pos',
+                unfinish: 'http://localhost:5173/pos',
+                error: 'http://localhost:5173/pos',
+            },
         };
 
         const transaction = await snap.createTransaction(parameter);
@@ -177,7 +171,10 @@ export const confirmMidtransPayment = async (req: Request, res: Response): Promi
 
         const existingOrder = await prisma.order.findUnique({
             where: { id },
-            include: { items: true },
+            include: { 
+                items: { include: { product: true } },
+                cashier: { select: { name: true } },
+            },
         });
 
         if (!existingOrder) {

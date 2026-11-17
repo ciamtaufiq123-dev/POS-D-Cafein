@@ -65,13 +65,14 @@ export const createOrder = async (req: Request, res: Response ): Promise<void> =
             const changeAmount = amountPaid! - totalAmount;
             
             const order = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-                for (const item of orderItemsData) {
-                    await tx.product.update({
-                        where: { id: item.productId },
-                        data: { stock: { decrement: item.quantity } }
-                    });
+                if (paymentMethod === 'CASH') {
+                    for (const item of orderItemsData) {
+                        await tx.product.update({
+                            where: { id: item.productId },
+                            data: { stock: { decrement: item.quantity } }
+                        });
+                    }
                 }
-
                 return await tx.order.create({
                     data: {
                         orderNumber,
@@ -190,20 +191,28 @@ export const confirmMidtransPayment = async (req: Request, res: Response): Promi
         }
 
         const updateOrder = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-            for (const item of existingOrder.items) {
-                await tx.product.update({
-                    where: { id: item.productId },
-                    data: { stock: { decrement: item.quantity } },
-                });
-            }
-
-            return await tx.order.update({
-                where: { id },
+            // Kunci agar hanya memproses jika status saat ini masih PENDING
+            const lock = await tx.order.updateMany({
+                where: { id: existingOrder.id, paymentStatus: 'PENDING' },
                 data: {
                     paymentStatus: 'PAID',
                     amountPaid: existingOrder.totalAmount,
                     changeAmount: 0,
                 },
+            });
+
+            // Hanya kurangi stok jika status baru saja berubah dari PENDING ke PAID
+            if (lock.count > 0) {
+                for (const item of existingOrder.items) {
+                    await tx.product.update({
+                        where: { id: item.productId },
+                        data: { stock: { decrement: item.quantity } },
+                    });
+                }
+            }
+
+            return await tx.order.findUnique({
+                where: { id: existingOrder.id },
                 include: {
                     items: { include: { product: true } },
                     cashier: { select: { name: true } },

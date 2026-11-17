@@ -251,7 +251,7 @@ useEffect(() => {
 
   if (savedOrderRaw) {
       localStorage.removeItem('pending_midtrans_order_id');
-      
+
       try {
         const savedOrder: Order = JSON.parse(savedOrderRaw);
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -529,7 +529,7 @@ return (
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
                 {filteredProducts.map((product) => {
                   const imgUrl = getImageUrl(
-                    (product as Product & { image?: string | null }).image
+                    product.imageUrl || (product as Product & { image?: string | null }).image
                   );
                   const outOfStock = product.stock <= 0;
 
@@ -662,7 +662,7 @@ return (
                   <div className="space-y-1.5 max-h-60 overflow-y-auto pr-0.5">
                     {cart.map((item) => {
                       const thumbUrl = getImageUrl(
-                        (item.product as Product & { image?: string | null }).image
+                        item.product.imageUrl || (item.product as Product & { image?: string | null }).image
                       );
                       const lineTotal =
                         Number(item.product.price) * item.quantity;

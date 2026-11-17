@@ -20,6 +20,7 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
 
         const products = await prisma.product.findMany({
         where: {
+            isAvailable: true,
             ...(categoryId ? { categoryId: String(categoryId) } : {}),
             ...(search
             ? { name: { contains: String(search), mode: 'insensitive' } }
@@ -48,7 +49,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
             stock: Number(stock),
             categoryId,
             imageUrl,
-            isAvailable: Number(stock) > 0,
+            isAvailable: true,
         },
         include: { category: true },
         });
@@ -88,7 +89,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
             isAvailable:
                 isAvailable !== undefined
                     ? isAvailable === 'true' || isAvailable === true
-                    : Number(stock ?? existing.stock) > 0,
+                    : existing.isAvailable,
         },
         include: { category: true },
     });
@@ -105,13 +106,18 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
 
 // 5. Hapus produk (Khusus ADMIN)
 export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
     try {
-        const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
         await prisma.product.delete({ where: { id } });
-        res.json({ message: 'Produk berhasil dihapus' });
+        res.json({ message: 'Produk berhasil dihapus permanen' });
     } catch (error) {
-    res.status(400).json({
-        message: 'Produk tidak bisa dihapus karena sudah tercatat di riwayat transaksi',
+        await prisma.product.update({
+            where: { id },
+            data: { isAvailable: false, stock: 0},
+        })
+        res.json({
+        message: 'Produk berhasil dihapus dari katalog',
     });
     }
 };

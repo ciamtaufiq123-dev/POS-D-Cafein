@@ -19,8 +19,8 @@ import { useAuth } from '../context/AuthContext';
 import type { Authresponse } from '../types';
 
 export const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState('admin@dcafein.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,12 +59,6 @@ export const LoginPage: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const fillDemoAccount = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('password123');
-    setErrorMsg(null);
   };
 
   return (
@@ -189,35 +183,6 @@ export const LoginPage: React.FC = () => {
                 Masukkan kredensial akun Anda untuk mengakses terminal kasir
                 atau portal administrasi.
               </p>
-            </div>
-
-            {/* Tombol Pilih Cepat Akun Demo */}
-            <div className="flex items-center gap-2 pt-1">
-              <span className="text-xs text-on-surface-variant font-medium">
-                Akun Cepat:
-              </span>
-              <button
-                type="button"
-                onClick={() => fillDemoAccount('admin@dcafein.com')}
-                className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-all cursor-pointer ${
-                  email === 'admin@dcafein.com'
-                    ? 'bg-orange-50 border-primary-container text-primary-container'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                Admin (ADMIN)
-              </button>
-              <button
-                type="button"
-                onClick={() => fillDemoAccount('kasir@dcafein.com')}
-                className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-all cursor-pointer ${
-                  email === 'kasir@dcafein.com'
-                    ? 'bg-orange-50 border-primary-container text-primary-container'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                Kasir (CASHIER)
-              </button>
             </div>
 
             {/* Kotak Pesan Error */}

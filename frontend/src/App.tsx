@@ -1,10 +1,11 @@
-import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { LoginPage } from './pages/LoginPage';
 import { PosPage } from '../src/pages/PosPage';
 import { ProtectedRoute } from '../src/components/ProtectedRoute';
 import { DashboardPage } from './pages/DashboardPage';
+import { ProductsPages } from '../src/pages/ProductsPage'
+import { OrdersPage } from './pages/OrdersPage';
 
 export function App() {
   return (
@@ -23,7 +24,25 @@ export function App() {
           <Route
             path="/dashboard" 
             element={
-              <DashboardPage />
+              <ProtectedRoute>
+                <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route 
+            path="/products"
+            element={
+              <ProtectedRoute>
+                <ProductsPages />
+              </ProtectedRoute>
+            }
+          />
+          <Route 
+            path="/orders"
+            element={
+              <ProtectedRoute>
+                <OrdersPage />
+              </ProtectedRoute>
             }
           />
           <Route path="*" element={<Navigate to="/login" replace />} />

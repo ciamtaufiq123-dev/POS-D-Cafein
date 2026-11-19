@@ -8,7 +8,6 @@ import {
     Store,
     ChevronRight,
     Calendar,
-    Bell,
     User as UserIcon,
     ChevronDown,
     Settings,
@@ -341,16 +340,6 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             <div className="h-4 w-px bg-outline-variant/40" />
-
-            <button
-              type="button"
-              onClick={fetchOrders}
-              title="Muat ulang data"
-              className="relative p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors cursor-pointer"
-            >
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary-container ring-2 ring-white" />
-            </button>
 
             {/* Dropdown Profil */}
             <div className="relative">

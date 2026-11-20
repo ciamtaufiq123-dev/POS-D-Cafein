@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { BACKEND_URL } from '../api/axios';
 import {
     Coffee,
     TrendingUp,
@@ -31,7 +32,7 @@ import type { Product, Category } from '../types/index';
 const getImageUrl = (url?: string | null) => {
     if (!url) return null;
     if (url.startsWith('http')) return url;
-    return `http://localhost:5000${url.startsWith('/') ? '' : '/'}${url}`;
+    return `${BACKEND_URL}${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
 export const ProductsPages: React.FC = () => {

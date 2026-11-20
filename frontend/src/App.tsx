@@ -2,21 +2,29 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { LoginPage } from './pages/LoginPage';
 import { PosPage } from '../src/pages/PosPage';
-import { ProtectedRoute } from '../src/components/ProtectedRoute';
+import { ProtectedRoute, PublicOnlyRoute } from '../src/components/ProtectedRoute';
 import { DashboardPage } from './pages/DashboardPage';
-import { ProductsPages } from '../src/pages/ProductsPage'
+import { ProductsPages } from '../src/pages/ProductsPage';
 import { OrdersPage } from './pages/OrdersPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 export function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
+            <Route path="/" element={<Navigate to="/login" replace />}/>
+          <Route 
+            path="/login"
+            element={
+              <PublicOnlyRoute>
+                <LoginPage />
+              </PublicOnlyRoute>} 
+          />
           <Route
             path="/pos"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={['ADMIN', 'CASHIER']}>
                 <PosPage />
               </ProtectedRoute>
             }
@@ -24,7 +32,7 @@ export function App() {
           <Route
             path="/dashboard" 
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={['ADMIN']}>
                 <DashboardPage />
               </ProtectedRoute>
             }
@@ -32,7 +40,7 @@ export function App() {
           <Route 
             path="/products"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={['ADMIN']}>
                 <ProductsPages />
               </ProtectedRoute>
             }
@@ -40,12 +48,12 @@ export function App() {
           <Route 
             path="/orders"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={['ADMIN']}>
                 <OrdersPage />
               </ProtectedRoute>
             }
           />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

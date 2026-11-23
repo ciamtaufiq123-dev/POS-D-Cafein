@@ -39,7 +39,7 @@ model Category {
     name String @unique
     products Product[]
     createdAt DateTime @default(now())
-    updateAt DateTime @updatedAt
+    updatedAt DateTime @updatedAt
 }
 
 model Product {
@@ -51,7 +51,7 @@ model Product {
     isAvailable Boolean @default(true)
     categoryId String
     category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-    orderItem OrderItem[]
+    orderItems OrderItem[]
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 }

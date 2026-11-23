@@ -17,7 +17,7 @@ export interface Category {
     id: string;
     name: string;
     createdAt?: string;
-    updateAt?: string;
+    updatedAt?: string;
 }
 
 export interface Product {
@@ -30,7 +30,7 @@ export interface Product {
     categoryId: string;
     category?: Category;
     createdAt: string;
-    updateAt: string;
+    updatedAt: string;
 }
 
 export interface CartItem extends Product {

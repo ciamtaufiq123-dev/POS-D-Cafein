@@ -27,7 +27,7 @@ const prisma = new PrismaClient();
 
 //     const cashier = await prisma.user.create({
 //     data: {
-//         name: 'Kasir Shift Pagi',
+//         name: 'Kasir',
 //         email: 'kasir@dcafein.com',
 //         password: hashedPassword,
 //         role: 'CASHIER',

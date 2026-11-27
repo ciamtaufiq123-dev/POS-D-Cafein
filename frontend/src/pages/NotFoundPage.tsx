@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Coffee, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 export const NotFoundPage: React.FC = () => {
     const navigate = useNavigate();
@@ -18,6 +19,7 @@ export const NotFoundPage: React.FC = () => {
     };
         return (
         <div className="min-h-screen bg-background flex items-center justify-center p-6 font-sans text-on-surface">
+            <ThemeToggle className="fixed right-4 top-4 z-50" />
             <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center flex flex-col items-center">
             <div className="w-14 h-14 rounded-2xl bg-primary-fixed/60 text-primary-container flex items-center justify-center mb-4">
                 <ShieldAlert className="w-7 h-7" />

@@ -4,6 +4,7 @@ import axios from 'axios';
 import { Search, ReceiptText, User as UserIcon, ChevronDown, LogOut, Plus, Minus, Banknote, QrCode, BadgeCheck, Coffee, Download, RefreshCw, CheckCircle2, LayoutDashboard, X, PiggyBank, IdCard } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { ThemeToggle } from '../components/ThemeToggle';
 import type { Category, Product, PaymentMethod, Order } from '../types/index'
 import { formatRupiah, formatDateTime, getImageUrl } from '../utils/format';
 import { downloadReceiptPdf } from '../utils/receiptPdf';
@@ -33,6 +34,7 @@ export const PosPage: React.FC = () => {
     const [ products, setProducts ] = useState<Product[]>([]);
     const [ categories, setCategories ] = useState<Category[]>([]);
     const [ loading, setLoading ] = useState <boolean>(true);
+    const [ catalogError, setCatalogError ] = useState<string | null>(null);
     const [ selectedCategory, setSelectedCategory ] = useState <string>('ALL');
     const [ searchQuery, setSearchQuery ] = useState <string>('');
     const [ cart, setCart ] = useState<PosCartItem[]>([]);
@@ -52,6 +54,8 @@ export const PosPage: React.FC = () => {
 
     const fetchCatalog = async () => {
         try {
+            setLoading(true);
+            setCatalogError(null);
             const [prodRes, catRes] = await Promise.all([
                 api.get('/products'),
                 api.get('/products/categories').catch(() => ({ data: { data: [] } })),
@@ -63,7 +67,8 @@ export const PosPage: React.FC = () => {
             setProducts(prodList);
             setCategories(catList);
         } catch (err) {
-            console.log('Gagal memuat katalog menu:', err);
+            console.error('Gagal memuat katalog menu:', err);
+            setCatalogError('Katalog menu gagal dimuat. Periksa koneksi server lalu coba lagi.');
         } finally {
             setLoading(false);
         }
@@ -353,6 +358,8 @@ return (
 
           {/* Menu Kanan: Dashboard (Khusus Admin), Riwayat Transaksi & Profil */}
           <div className="flex items-center gap-3 shrink-0">
+            <ThemeToggle />
+
             {user?.role === 'ADMIN' && (
               <button
                 type="button"
@@ -514,6 +521,21 @@ return (
                     <div className="h-6 w-1/2 bg-slate-200 rounded" />
                   </div>
                 ))}
+              </div>
+            ) : catalogError ? (
+              <div className="bg-white rounded-xl p-12 text-center space-y-3 shadow-xs">
+                <Coffee className="w-10 h-10 text-primary/40 mx-auto" />
+                <p className="text-base font-semibold text-on-surface">
+                  Katalog menu tidak dapat dimuat
+                </p>
+                <p className="text-xs text-on-surface-variant">{catalogError}</p>
+                <button
+                  type="button"
+                  onClick={fetchCatalog}
+                  className="px-4 py-2 rounded-lg bg-primary-container text-white text-xs font-semibold cursor-pointer"
+                >
+                  Coba lagi
+                </button>
               </div>
             ) : filteredProducts.length === 0 ? (
               <div className="bg-white rounded-xl p-12 text-center space-y-2 shadow-xs">

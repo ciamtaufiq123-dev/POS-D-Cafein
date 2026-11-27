@@ -7,12 +7,14 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ProductsPages } from '../src/pages/ProductsPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { ThemeProvider } from './context/ThemeContext';
 
 export function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
             <Route path="/" element={<Navigate to="/login" replace />}/>
           <Route 
             path="/login"
@@ -54,9 +56,10 @@ export function App() {
             }
           />
           <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

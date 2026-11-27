@@ -21,8 +21,15 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { ThemeToggle } from '../components/ThemeToggle';
 import type { Order } from '../types/index';
 import { formatRupiah } from '../utils/format';
+
+interface ChartPeriodSelection {
+    start: Date;
+    end: Date;
+    label: string;
+}
 
 export const DashboardPage: React.FC = () => {
     const { user, logout } = useAuth();
@@ -30,19 +37,31 @@ export const DashboardPage: React.FC = () => {
 
     const [ orders, setOrders ] = useState<Order[]>([]);
     const [ loading, setLoading ] = useState<boolean>(true);
+    const [ loadError, setLoadError ] = useState<string | null>(null);
     const [ profileOpen, setProfileOpen ] = useState<boolean>(false);
-    const [ chartRange, setChartRange ] = useState<'7D' | '30D'>('7D');
+    const [ chartRange, setChartRange ] = useState<'7D' | '30D' | 'MONTHLY'>('7D');
+    const [ selectedYear, setSelectedYear ] = useState<number>(
+        Math.max(2026, new Date().getFullYear())
+    );
+    const [ selectedChartPeriod, setSelectedChartPeriod ] = useState<ChartPeriodSelection | null>(null);
     const [ searchInvoice, setSearchInvoice ] = useState<string>('');
     const [ hoveredBarIndex, setHoveredBarIndex ] = useState<number | null>(null);
+    const currentYear = new Date().getFullYear();
+    const chartYears = Array.from(
+        { length: Math.max(1, currentYear - 2026 + 1) },
+        (_, index) => 2026 + index
+    );
 
     const fetchOrders = async () => {
         try {
             setLoading(true);
+            setLoadError(null);
             const res = await api.get('/orders');
             const list: Order[] = res.data?.data || res.data || [];
             setOrders(list);
         } catch (err) {
             console.error('Gagal memuat data analitik dashboard', err);
+            setLoadError('Data transaksi gagal dimuat. Periksa koneksi server lalu coba lagi.');
         } finally {
             setLoading(false);
         }
@@ -84,23 +103,38 @@ export const DashboardPage: React.FC = () => {
         });
     }, [paidOrders]);
 
-    const todayRevenue = useMemo(() => {
-        return todayPaidOrders.reduce(
+    const activePaidOrders = useMemo(() => {
+        if (!selectedChartPeriod) return todayPaidOrders;
+
+        return paidOrders.filter((o) => {
+            const createdAt = new Date(o.createdAt).getTime();
+            return (
+                Number.isFinite(createdAt) &&
+                createdAt >= selectedChartPeriod.start.getTime() &&
+                createdAt < selectedChartPeriod.end.getTime()
+            );
+        });
+    }, [paidOrders, selectedChartPeriod, todayPaidOrders]);
+
+    const activePeriodRevenue = useMemo(() => {
+        return activePaidOrders.reduce(
             (sum, o) => sum + Number(o.totalAmount || 0),
             0
         );
-    }, [todayPaidOrders]);
+    }, [activePaidOrders]);
 
-    const todayOrderCount = todayPaidOrders.length;
+    const activePeriodOrderCount = activePaidOrders.length;
 
-    const todayItemsSold = useMemo(() => {
-        return todayPaidOrders.reduce((sum, o) => {
+    const activePeriodItemsSold = useMemo(() => {
+        return activePaidOrders.reduce((sum, o) => {
             const itemCount =
             o.items?.reduce((acc, item) => acc + Number(item.quantity || 0), 0) ||
             0;
             return sum + itemCount;
         }, 0);
-    }, [todayPaidOrders])
+    }, [activePaidOrders])
+
+    const activePeriodLabel = selectedChartPeriod?.label || 'Hari Ini';
 
     const weeklyChartData = useMemo(() => {
         const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
@@ -110,60 +144,107 @@ export const DashboardPage: React.FC = () => {
             dateStr: string;
             amount: number;
             isToday: boolean;
+            periodStart: Date;
+            periodEnd: Date;
+            periodLabel: string;
         }[] = [];
 
-        for (let i = 6; i >= 0; i--) {
+        const monthNames = ['Jan', 'Feb', 'mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+        if (chartRange === 'MONTHLY') {
+          for (let m = 0; m < 12 ; m++) {
+            const periodStart = new Date(selectedYear, m, 1);
+            const periodEnd = new Date(selectedYear, m + 1, 1);
+            const monthTotal = paidOrders
+              .filter((o) => {
+                if (!o.createdAt) return false;
+                const od = new Date(o.createdAt);
+                return od.getFullYear() === selectedYear && od.getMonth() === m;
+              })
+              .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+
+          days.push({
+            label: monthNames[m],
+            dateStr: `${monthNames[m]} ${selectedYear}`,
+            amount: monthTotal,
+            isToday: selectedYear === today.getFullYear() && m === today.getMonth(),
+            periodStart,
+            periodEnd,
+            periodLabel: `${monthNames[m]} ${selectedYear}`,
+          });
+          }
+        } else {
+          const totalDays = chartRange === '7D' ? 7 : 30;
+          for (let i = totalDays - 1; i >= 0; i--) {
             const d = new Date(today);
             d.setDate(today.getDate() - i);
 
             const dayTotal = paidOrders
-                .filter((o) => {
-                    if (!o.createdAt) return false;
-                    const od = new Date(o.createdAt);
-                    return (
-                        od.getDate() === d.getDate() &&
-                        od.getMonth() === d.getMonth() &&
-                        od.getFullYear() === d.getFullYear()
-                    );
-                })
-                .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
-                
+              .filter((o) => {
+                if (!o.createdAt) return false;
+                const od = new Date(o.createdAt);
+                return (
+                  od.getDate() === d.getDate() &&
+                  od.getMonth() === d.getMonth() &&
+                  od.getFullYear() === d.getFullYear()
+                );
+              })
+              .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+
+            const shortDate = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+            const periodStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+            const periodEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
             days.push({
-                label: dayNames[d.getDay()],
-                dateStr: d.toLocaleDateString('id-ID', {
-                    day: 'numeric',
-                    month: 'short',
-                }),
-                amount: dayTotal,
-                isToday: i === 0,
-            });
-        }
-
-        const totalWeek = days.reduce((s, d) => s + d.amount, 0);
-        const avgWeek = Math.round(totalWeek / 7);
-        const maxVal = Math.max(2000000, ...days.map((d) => d.amount));
-
-        const startDate = new Date(today);
-        startDate.setDate(today.getDate() - 6);
-        const periodLabel = `Period ${startDate.getDate()} - ${today.toLocaleDateString(
-            'id-ID',
-            {
+              label: chartRange === '7D' ? dayNames[d.getDay()] : shortDate,
+              dateStr: shortDate,
+              amount: dayTotal,
+              isToday: i === 0,
+              periodStart,
+              periodEnd,
+              periodLabel: periodStart.toLocaleDateString('id-ID', {
+                weekday: 'long',
                 day: 'numeric',
                 month: 'long',
                 year: 'numeric',
-            }
-        )}`;
+              }),
+            });
+          }
+        }
 
-        return { days, totalWeek, avgWeek, maxVal, periodLabel };
-    }, [paidOrders]);
+        const totalWeek = days.reduce((s, d) => s + d.amount, 0);
+        const divisor = chartRange === 'MONTHLY'
+              ? (selectedYear === today.getFullYear() ? today.getMonth() + 1 : 12)
+              : days.length;
+        const avgWeek = Math.round(totalWeek / Math.max(1, divisor));
+        const maxVal = Math.max(100000, ...days.map((d) => d.amount));
+
+        const title =
+          chartRange === '7D'
+            ? 'Tren Pemasukan 7 Hari'
+            : chartRange === '30D'
+            ? 'Tren Pemasukan 30 hari'
+            : `Tren Pemasukan Bulanan ${selectedYear}`;
+
+        const totalLabel =
+          chartRange === '7D' ? 'Total 7 Hari' : chartRange === '30D' ? 'Total 30 Hari' : `Total Tahun ${selectedYear}`;
+
+        const avgUnit = chartRange === 'MONTHLY' ? 'bulan' : 'hari';
+
+        let periodLabel = `januari - Desember ${selectedYear}`;
+        if (chartRange !== 'MONTHLY') {
+          const startDate = new Date(today);
+          startDate.setDate(today.getDate() - (days.length - 1));
+          periodLabel = `Period ${startDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short'})} - ${today.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric'})}`;
+        }
+
+        return { days, totalWeek, avgWeek, maxVal, periodLabel, title, totalLabel, avgUnit };
+    }, [paidOrders, chartRange, selectedYear]);
 
     const paymentBreakdown = useMemo(() => {
-        const sourceOrders =
-            todayPaidOrders.length > 0 ? todayPaidOrders : paidOrders;
-        const totalCount = sourceOrders.length;
+        const totalCount = activePaidOrders.length;
 
-        const cashOrders = sourceOrders.filter((o) => o.paymentMethod === 'CASH');
-        const qrisOrders = sourceOrders.filter((o) => o.paymentMethod === 'MIDTRANS');
+        const cashOrders = activePaidOrders.filter((o) => o.paymentMethod === 'CASH');
+        const qrisOrders = activePaidOrders.filter((o) => o.paymentMethod === 'MIDTRANS');
 
         const cashCount = cashOrders.length;
         const qrisCount = qrisOrders.length;
@@ -196,19 +277,43 @@ export const DashboardPage: React.FC = () => {
             qrisDash,
             cashDash,
         };
-    }, [todayPaidOrders, paidOrders]);
+    }, [activePaidOrders]);
 
     const recentTransactions = useMemo(() => {
         const q = searchInvoice.toLocaleLowerCase().trim();
         const filtered = orders.filter((o) => {
-            if (!q) return true;
-            return (
+            const matchesSearch = !q || (
                 o.orderNumber?.toLocaleLowerCase().includes(q) ||
                 o.customerName?.toLocaleLowerCase().includes(q)
             );
+            if (!matchesSearch) return false;
+            if (!selectedChartPeriod) return true;
+
+            const createdAt = new Date(o.createdAt).getTime();
+            return (
+                Number.isFinite(createdAt) &&
+                createdAt >= selectedChartPeriod.start.getTime() &&
+                createdAt < selectedChartPeriod.end.getTime()
+            );
         });
-        return filtered.slice(0, 5);
-    }, [orders, searchInvoice]);
+        return selectedChartPeriod ? filtered : filtered.slice(0, 5);
+    }, [orders, searchInvoice, selectedChartPeriod]);
+
+    const handleChartPeriodSelect = (period: ChartPeriodSelection) => {
+        setSelectedChartPeriod((current) =>
+            current?.start.getTime() === period.start.getTime() &&
+            current?.end.getTime() === period.end.getTime()
+                ? null
+                : period
+        );
+    };
+
+    const formatShortRupiah = (val: number) => {
+        if (val <= 0) return 'Rp 0';
+        if (val >= 1000000) return `Rp ${(val / 1000000).toFixed(1)}jt`;
+        if (val >= 1000) return `Rp ${Math.round(val / 1000)}rb`;
+        return `Rp ${val}`;
+    };
 
     const handleExportCsv = () => {
         if (orders.length === 0) return;
@@ -341,6 +446,8 @@ export const DashboardPage: React.FC = () => {
 
             <div className="h-4 w-px bg-outline-variant/40" />
 
+            <ThemeToggle />
+
             {/* Dropdown Profil */}
             <div className="relative">
               <button
@@ -452,7 +559,7 @@ export const DashboardPage: React.FC = () => {
               <div className="flex flex-col p-6 rounded-xl bg-white shadow-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-on-surface-variant">
-                    Pemasukan Hari Ini
+                    Pemasukan {activePeriodLabel}
                   </span>
                   <div className="w-10 h-10 rounded-lg bg-primary-fixed flex items-center justify-center">
                     <Wallet className="w-5 h-5 text-primary" />
@@ -460,7 +567,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <div className="mt-3 flex flex-col gap-1">
                   <span className="text-[30px] font-semibold text-on-surface tracking-tight leading-tight">
-                    {formatRupiah(todayRevenue)}
+                    {formatRupiah(activePeriodRevenue)}
                   </span>
                 </div>
               </div>
@@ -469,7 +576,7 @@ export const DashboardPage: React.FC = () => {
               <div className="flex flex-col p-6 rounded-xl bg-white shadow-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-on-surface-variant">
-                    Total Transaksi Hari Ini
+                    Total Transaksi {activePeriodLabel}
                   </span>
                   <div className="w-10 h-10 rounded-lg bg-[#e2e7ff] flex items-center justify-center">
                     <ReceiptText className="w-5 h-5 text-on-surface" />
@@ -477,7 +584,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <div className="mt-3 flex flex-col gap-1">
                   <span className="text-[30px] font-semibold text-on-surface tracking-tight leading-tight">
-                    {todayOrderCount} Pesanan
+                    {activePeriodOrderCount} Pesanan
                   </span>
                 </div>
               </div>
@@ -486,7 +593,7 @@ export const DashboardPage: React.FC = () => {
               <div className="flex flex-col p-6 rounded-xl bg-white shadow-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-on-surface-variant">
-                    Item Terjual Hari Ini
+                    Item Terjual {activePeriodLabel}
                   </span>
                   <div className="w-10 h-10 rounded-lg bg-primary-fixed flex items-center justify-center">
                     <Coffee className="w-5 h-5 text-primary" />
@@ -494,7 +601,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <div className="mt-3 flex flex-col gap-1">
                   <span className="text-[30px] font-semibold text-on-surface tracking-tight leading-tight">
-                    {todayItemsSold} Produk
+                    {activePeriodItemsSold} Produk
                   </span>
                 </div>
               </div>
@@ -507,35 +614,79 @@ export const DashboardPage: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div>
                     <h2 className="text-[20px] font-semibold text-on-surface">
-                      Tren Pemasukan Mingguan
+                      {weeklyChartData.title}
                     </h2>
                     <p className="text-[13px] text-on-surface-variant">
                       {weeklyChartData.periodLabel}
                     </p>
+                    <p className="text-[11px] text-on-surface-variant">
+                      Klik batang untuk melihat transaksi pada tanggal atau bulan tersebut.
+                    </p>
                   </div>
-                  <div className="inline-flex items-center p-0.5 rounded-lg bg-surface-container gap-1 self-start sm:self-auto">
-                    <button
-                      type="button"
-                      onClick={() => setChartRange('7D')}
-                      className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
-                        chartRange === '7D'
-                          ? 'bg-white text-primary shadow-2xs'
-                          : 'text-on-surface-variant hover:text-on-surface'
-                      }`}
-                    >
-                      7 Hari
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setChartRange('30D')}
-                      className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
-                        chartRange === '30D'
-                          ? 'bg-white text-primary shadow-2xs'
-                          : 'text-on-surface-variant hover:text-on-surface'
-                      }`}
-                    >
-                      30 Hari
-                    </button>
+                  <div className="flex flex-wrap items-center justify-end gap-2 self-start sm:self-auto">
+                    {chartRange === 'MONTHLY' && (
+                      <select
+                        value={selectedYear}
+                        onChange={(e) => {
+                          setSelectedYear(Number(e.target.value));
+                          setSelectedChartPeriod(null);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-surface-container text-xs font-semibold text-on-surface cursor-pointer focus:outline-none"
+                      >
+                        {chartYears.map((yr) => (
+                          <option key={yr} value={yr}>
+                            {yr}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <div className="inline-flex items-center p-0.5 rounded-lg bg-surface-container gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChartRange('7D');
+                          setSelectedChartPeriod(null);
+                          setHoveredBarIndex(null);
+                        }}
+                        className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                          chartRange === '7D'
+                            ? 'bg-white text-primary shadow-2xs'
+                            : 'text-on-surface-variant hover:text-on-surface'
+                        }`}
+                      >
+                        7 Hari
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChartRange('30D');
+                          setSelectedChartPeriod(null);
+                          setHoveredBarIndex(null);
+                        }}
+                        className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                          chartRange === '30D'
+                            ? 'bg-white text-primary shadow-2xs'
+                            : 'text-on-surface-variant hover:text-on-surface'
+                        }`}
+                      >
+                        30 Hari
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChartRange('MONTHLY');
+                          setSelectedChartPeriod(null);
+                          setHoveredBarIndex(null);
+                        }}
+                        className={`px-2 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                          chartRange === 'MONTHLY'
+                            ? 'bg-white text-primary shadow-2xs'
+                            : 'text-on-surface-variant hover:text-on-surface'
+                        }`}
+                      >
+                        Per Bulan
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -548,134 +699,135 @@ export const DashboardPage: React.FC = () => {
                   >
                     {/* Grid Lines & Y-Labels */}
                     <g className="text-on-surface-variant opacity-50 text-[11px] font-semibold">
-                      <line
-                        opacity="0.3"
-                        stroke="currentColor"
-                        strokeDasharray="3 3"
-                        x1="65"
-                        x2="680"
-                        y1="20"
-                        y2="20"
-                      />
-                      <text fill="currentColor" textAnchor="end" x="55" y="24">
-                        Rp 2.0jt
-                      </text>
-                      <line
-                        opacity="0.3"
-                        stroke="currentColor"
-                        strokeDasharray="3 3"
-                        x1="65"
-                        x2="680"
-                        y1="65"
-                        y2="65"
-                      />
-                      <text fill="currentColor" textAnchor="end" x="55" y="69">
-                        Rp 1.5jt
-                      </text>
-                      <line
-                        opacity="0.3"
-                        stroke="currentColor"
-                        strokeDasharray="3 3"
-                        x1="65"
-                        x2="680"
-                        y1="110"
-                        y2="110"
-                      />
-                      <text fill="currentColor" textAnchor="end" x="55" y="114">
-                        Rp 1.0jt
-                      </text>
-                      <line
-                        opacity="0.3"
-                        stroke="currentColor"
-                        strokeDasharray="3 3"
-                        x1="65"
-                        x2="680"
-                        y1="155"
-                        y2="155"
-                      />
-                      <text fill="currentColor" textAnchor="end" x="55" y="159">
-                        Rp 500rb
-                      </text>
-                      <line
-                        opacity="0.5"
-                        stroke="currentColor"
-                        x1="65"
-                        x2="680"
-                        y1="200"
-                        y2="200"
-                      />
-                      <text fill="currentColor" textAnchor="end" x="55" y="204">
-                        Rp 0
-                      </text>
+                      {[1, 0.75, 0.5, 0.25, 0].map((ratio, idx) => {
+                        const y = 20 + idx * 45;
+                        return (
+                          <g key={idx}>
+                            <line
+                              opacity={ratio === 0 ? '0.5' : '0.3'}
+                              stroke="currentColor"
+                              strokeDasharray={ratio === 0 ? undefined : '3 3'}
+                              x1="65"
+                              x2="680"
+                              y1={y}
+                              y2={y}
+                            />
+                            <text fill="currentColor" textAnchor="end" x="55" y={y + 4}>
+                              {formatShortRupiah(weeklyChartData.maxVal * ratio)}
+                            </text>
+                          </g>
+                        );
+                      })}
                     </g>
 
                     {/* Dynamic Bars */}
                     {weeklyChartData.days.map((day, idx) => {
-                      const xPos = 90 + idx * 85;
-                      const centerX = xPos + 23;
-                      const rawHeight =
-                        (day.amount / weeklyChartData.maxVal) * 180;
+                      const slotWidth = 615 / weeklyChartData.days.length;
+                      const barWidth = chartRange === '7D' ? 46 : chartRange === '30D' ? 12 : 30;
+                      const xPos = 65 + idx * slotWidth + (slotWidth - barWidth) / 2;
+                      const centerX = xPos + barWidth / 2;
+                      const rawHeight = (day.amount / weeklyChartData.maxVal) * 180;
                       const barHeight =
                         day.amount > 0 ? Math.max(8, Math.min(180, rawHeight)) : 4;
                       const yPos = 200 - barHeight;
+                      const isSelected =
+                        selectedChartPeriod?.start.getTime() === day.periodStart.getTime();
                       const isHighlighted =
                         hoveredBarIndex === idx ||
-                        (hoveredBarIndex === null && day.isToday);
+                        (hoveredBarIndex === null &&
+                          (selectedChartPeriod ? isSelected : day.isToday));
+                      const isAccent = isSelected || (!selectedChartPeriod && day.isToday);
+                      const showXLabel =
+                        chartRange !== '30D' ||
+                        idx === 0 ||
+                        idx === weeklyChartData.days.length - 1 ||
+                        idx % 5 === 0;
 
                       return (
                         <g
-                          key={day.dateStr}
-                          className="cursor-pointer"
+                          key={`${day.dateStr}-${idx}`}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Tampilkan transaksi ${day.periodLabel}`}
+                          aria-pressed={isSelected}
+                          className="cursor-pointer focus:outline-none focus-visible:outline-2 focus-visible:outline-[#f97316]"
                           onMouseEnter={() => setHoveredBarIndex(idx)}
                           onMouseLeave={() => setHoveredBarIndex(null)}
+                          onClick={() =>
+                            handleChartPeriodSelect({
+                              start: day.periodStart,
+                              end: day.periodEnd,
+                              label: day.periodLabel,
+                            })
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              handleChartPeriodSelect({
+                                start: day.periodStart,
+                                end: day.periodEnd,
+                                label: day.periodLabel,
+                              });
+                            }
+                          }}
                         >
+                          {/* Area hover agar batang tipis di mode 30 Hari gampang di-hover */}
                           <rect
-                            fill={day.isToday ? '#f97316' : '#ffb690'}
+                            fill="transparent"
+                            height="190"
+                            width={slotWidth}
+                            x={65 + idx * slotWidth}
+                            y="15"
+                          />
+                          <rect
+                            fill={isAccent ? '#f97316' : '#ffb690'}
                             height={barHeight}
-                            rx="4"
-                            width="46"
+                            rx={chartRange === '30D' ? 3 : 4}
+                            width={barWidth}
                             x={xPos}
                             y={yPos}
                             className="transition-all duration-300 hover:opacity-90"
                           />
-                          <text
-                            className={`text-[12px] ${
-                              day.isToday ? 'font-bold' : 'font-semibold'
-                            }`}
-                            fill={day.isToday ? '#9d4300' : '#584237'}
-                            textAnchor="middle"
-                            x={centerX}
-                            y="218"
-                          >
-                            {day.label}
-                          </text>
+                          {showXLabel && (
+                            <text
+                              className={`${chartRange === '30D' ? 'text-[10px]' : 'text-[12px]'} ${
+                                day.isToday ? 'font-bold' : 'font-semibold'
+                              }`}
+                              fill={isAccent ? '#9d4300' : '#584237'}
+                              textAnchor="middle"
+                              x={centerX}
+                              y="218"
+                            >
+                              {day.label}
+                            </text>
+                          )}
 
                           {/* Tooltip */}
                           {isHighlighted && (
-                            <g>
+                            <g className="pointer-events-none">
                               <rect
                                 fill="#131b2e"
                                 height="26"
                                 rx="4"
-                                width="145"
-                                x={Math.min(545, Math.max(65, centerX - 72))}
+                                width="165"
+                                x={Math.min(515, Math.max(65, centerX - 82))}
                                 y={Math.max(4, yPos - 34)}
                               />
                               <text
                                 className="text-[11px] font-semibold"
                                 fill="#ffffff"
                                 textAnchor="middle"
-                                x={Math.min(617, Math.max(137, centerX))}
+                                x={Math.min(597, Math.max(147, centerX))}
                                 y={Math.max(21, yPos - 17)}
                               >
-                                {day.isToday ? 'Hari Ini' : day.dateStr}:{' '}
+                                {day.isToday && chartRange !== 'MONTHLY' ? 'Hari Ini' : day.dateStr}:{' '}
                                 {formatRupiah(day.amount)}
                               </text>
                             </g>
                           )}
                         </g>
-                      );
-                    })}
+                  );
+                  })}
                   </svg>
                 </div>
 
@@ -684,18 +836,18 @@ export const DashboardPage: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-primary-container" />
                     <span>
-                      Total 7 Hari:{' '}
+                      {weeklyChartData.totalLabel} :
                       <strong className="text-on-surface font-semibold">
                         {formatRupiah(weeklyChartData.totalWeek)}
                       </strong>
                     </span>
                   </div>
                   <span className="text-on-surface-variant">
-                    Rata-rata:{' '}
+                    Rata-rata: {' '}
                     <strong className="text-on-surface font-semibold">
                       {formatRupiah(weeklyChartData.avgWeek)}
                     </strong>{' '}
-                    / hari
+                    / {weeklyChartData.avgUnit}
                   </span>
                 </div>
               </div>
@@ -707,7 +859,7 @@ export const DashboardPage: React.FC = () => {
                     Metode Pembayaran
                   </h2>
                   <p className="text-[13px] text-on-surface-variant">
-                    Komposisi transaksi hari ini
+                    Komposisi transaksi {activePeriodLabel}
                   </p>
                 </div>
 
@@ -803,14 +955,27 @@ export const DashboardPage: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <div>
                   <h2 className="text-[20px] font-semibold text-on-surface">
-                    Transaksi Terbaru Hari Ini
+                    {selectedChartPeriod
+                      ? `Transaksi ${selectedChartPeriod.label}`
+                      : 'Transaksi Terbaru'}
                   </h2>
                   <p className="text-[13px] text-on-surface-variant">
-                    5 antrean pesanan terakhir yang diproses
+                    {selectedChartPeriod
+                      ? `${recentTransactions.length} transaksi pada periode ini`
+                      : '5 transaksi terakhir yang diproses'}
                   </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
+                  {selectedChartPeriod && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedChartPeriod(null)}
+                      className="text-xs font-semibold text-primary hover:text-[#582200] cursor-pointer"
+                    >
+                      Tampilkan transaksi terbaru
+                    </button>
+                  )}
                   <div className="relative min-w-55">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                     <input
@@ -859,13 +1024,31 @@ export const DashboardPage: React.FC = () => {
                           Memuat data transaksi...
                         </td>
                       </tr>
+                    ) : loadError ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="py-8 text-center text-xs text-[#93000a]"
+                        >
+                          {loadError}{' '}
+                          <button
+                            type="button"
+                            onClick={fetchOrders}
+                            className="font-semibold underline cursor-pointer"
+                          >
+                            Coba lagi
+                          </button>
+                        </td>
+                      </tr>
                     ) : recentTransactions.length === 0 ? (
                       <tr>
                         <td
                           colSpan={6}
                           className="py-8 text-center text-xs text-on-surface-variant"
                         >
-                          Belum ada transaksi yang sesuai.
+                          {selectedChartPeriod
+                            ? `Belum ada transaksi pada ${selectedChartPeriod.label}.`
+                            : 'Belum ada transaksi yang sesuai.'}
                         </td>
                       </tr>
                     ) : (

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { ThemeToggle } from '../components/ThemeToggle';
 import type { Authresponse } from '../types';
 
 export const LoginPage: React.FC = () => {
@@ -63,6 +64,7 @@ export const LoginPage: React.FC = () => {
 
   return (
     <main className="min-h-screen w-full bg-background">
+      <ThemeToggle className="fixed right-4 top-4 z-50" />
       <div className="w-full min-h-screen flex flex-col lg:flex-row overflow-hidden bg-surface-container-lowest">
         {/* PANEL KIRI: Branding D'Cafein */}
         <div className="w-full lg:w-1/2 relative bg-linear-to-br from-primary-container via-surface-tint to-primary text-on-primary p-8 sm:p-12 lg:p-16 flex flex-col justify-between overflow-hidden min-h-screen">

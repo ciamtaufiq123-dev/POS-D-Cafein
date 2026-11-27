@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { ThemeToggle } from '../components/ThemeToggle';
 import type { Product, Category } from '../types/index';
 
 const getImageUrl = (url?: string | null) => {
@@ -358,6 +359,8 @@ export const ProductsPages: React.FC = () => {
             </div>
 
             <div className="h-4 w-px bg-outline-variant/40" />
+
+            <ThemeToggle />
 
             <div className="relative">
               <button

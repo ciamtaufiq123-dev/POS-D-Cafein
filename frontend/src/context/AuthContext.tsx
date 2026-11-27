@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import api, { AUTH_UNAUTHORIZED_EVENT } from '../api/axios';
 import type { User } from '../types';
 
 interface AuthContextType {
@@ -20,6 +21,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const savedUser = localStorage.getItem('user');
         return savedUser ? (JSON.parse(savedUser) as User) : null;
     });
+
+    useEffect(() => {
+        const handleUnauthorized = () => {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setToken(null);
+            setUser(null);
+        };
+
+        window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+        return () => {
+            window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!token) return;
+
+        let isActive = true;
+        api.get<{ user: User }>('/auth/me')
+            .then(({ data }) => {
+                if (!isActive) return;
+                localStorage.setItem('user', JSON.stringify(data.user));
+                setUser(data.user);
+            })
+            .catch((error: unknown) => {
+                if (isActive) {
+                    console.error('Gagal menyegarkan profil pengguna:', error);
+                }
+            });
+
+        return () => {
+            isActive = false;
+        };
+    }, [token]);
 
     const loginSuccess = (newToken: string, userData: User) => {
         localStorage.setItem('token', newToken);

@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { ThemeToggle } from '../components/ThemeToggle';
 import type { Order } from '../types/index';
 
 interface NormalizedOrderItem {
@@ -53,6 +54,8 @@ interface NormalizedOrder {
     status: 'PAID' | 'PENDING' | 'CANCELLED';
     items: NormalizedOrderItem[];
 }
+
+type DatePreset = 'all' | 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'custom';
 
 const normalizeOrder = (order: Order): NormalizedOrder => {
     const o = order as unknown as Record<string, unknown>;
@@ -132,8 +135,9 @@ export const OrdersPage: React.FC = () => {
     const [showAdvancedFilter, setShowAdvancedFilter] = useState<boolean>(false);
     const [minPrice, setMinPrice] = useState<string>('');
     const [maxPrice, setMaxPrice] = useState<string>('');
-    const [shiftFilter, setShiftFilter] = useState<string>('all')
-    const [dateFilter, setDateFilter] = useState<string>('');
+    const [datePreset, setDatePreset] = useState<DatePreset>('all');
+    const [dateFrom, setDateFrom] = useState<string>('');
+    const [dateTo, setDateTo] = useState<string>('');
     const [currentPage, setCurrentPage] = useState<number>(1)
     const itemsPerPage = 7;
     const [selectedOrder, setSelectedOrder] = useState<NormalizedOrder | null>(null);
@@ -221,6 +225,40 @@ export const OrdersPage: React.FC = () => {
             .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     }, [rawOrders]);
 
+    const dateRange = useMemo(() => {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+        switch (datePreset) {
+            case 'today':
+                return { start: todayStart, end: tomorrowStart };
+            case 'yesterday': {
+                const yesterdayStart = new Date(todayStart);
+                yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+                return { start: yesterdayStart, end: todayStart };
+            }
+            case 'last7days': {
+                const sevenDaysAgo = new Date(todayStart);
+                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+                return { start: sevenDaysAgo, end: tomorrowStart };
+            }
+            case 'thisMonth':
+                return {
+                    start: new Date(now.getFullYear(), now.getMonth(), 1),
+                    end: new Date(now.getFullYear(), now.getMonth() + 1, 1),
+                };
+            case 'custom': {
+                const start = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
+                const end = dateTo ? new Date(`${dateTo}T00:00:00`) : null;
+                if (end) end.setDate(end.getDate() + 1);
+                return { start, end };
+            }
+            default:
+                return null;
+        }
+    }, [datePreset, dateFrom, dateTo]);
+
     const filteredOrders = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
         const minVal = minPrice ? Number(minPrice.replace(/[^0-9]/g, '')) : null;
@@ -243,34 +281,45 @@ export const OrdersPage: React.FC = () => {
             const matchMin = minVal === null || isNaN(minVal) || order.totalAmount >= minVal;
             const matchMax = maxVal === null || isNaN(maxVal) || order.totalAmount <= maxVal;
 
-            const hour = order.createdAt.getHours();
-            const matchShift =
-                shiftFilter === 'all' ||
-                (shiftFilter === 'pagi' && hour >= 7 && hour < 15) ||
-                (shiftFilter === 'sore' && (hour >= 15 || hour < 7));
+            const matchDate =
+                !dateRange ||
+                ((!dateRange.start || order.createdAt >= dateRange.start) &&
+                    (!dateRange.end || order.createdAt < dateRange.end));
 
-            let matchDate = true;
-            if (dateFilter) {
-                const yyyy = order.createdAt.getFullYear();
-                const mm = String(order.createdAt.getMonth() + 1).padStart(2, '0');
-                const dd = String(order.createdAt.getDate()).padStart(2, '0');
-                matchDate = `${yyyy}-${mm}-${dd}` === dateFilter;
-            }
-
-            return matchSearch && matchPayment && matchMin && matchMax && matchShift && matchDate;
+            return matchSearch && matchPayment && matchMin && matchMax && matchDate;
         });
-    }, [orders, searchQuery, paymentFilter, minPrice, maxPrice, shiftFilter, dateFilter]);
+    }, [orders, searchQuery, paymentFilter, minPrice, maxPrice, dateRange]);
 
     const kpi = useMemo(() => {
         const totalCount = filteredOrders.length;
-        const totalRevenue = filteredOrders
-            .filter((o) => o.status !== 'CANCELLED')
+        const paidOrders = filteredOrders.filter((o) => o.status === 'PAID');
+        const pendingCount = filteredOrders.filter((o) => o.status === 'PENDING').length;
+        const cancelledCount = filteredOrders.filter((o) => o.status === 'CANCELLED').length;
+        const totalRevenue = paidOrders
             .reduce((sum, o) => sum + o.totalAmount, 0);
-        return { totalCount, totalRevenue };
+        return {
+            totalCount,
+            paidCount: paidOrders.length,
+            pendingCount,
+            cancelledCount,
+            totalRevenue,
+        };
     }, [filteredOrders]);
 
     const totalPages = Math.max(1, Math.ceil(filteredOrders.length / itemsPerPage));
     const safeCurrentPage = Math.min(currentPage, totalPages);
+    const visiblePageCount = Math.min(5, totalPages);
+    const firstVisiblePage = Math.max(
+        1,
+        Math.min(
+            safeCurrentPage - Math.floor(visiblePageCount / 2),
+            totalPages - visiblePageCount + 1
+        )
+    );
+    const visiblePageNumbers = Array.from(
+        { length: visiblePageCount },
+        (_, index) => firstVisiblePage + index
+    );
 
     const paginationOrders = useMemo(() => {
         const start = (safeCurrentPage - 1) * itemsPerPage;
@@ -282,8 +331,9 @@ export const OrdersPage: React.FC = () => {
         setPaymentFilter('all');
         setMinPrice('');
         setMaxPrice('');
-        setShiftFilter('all');
-        setDateFilter('');
+        setDatePreset('all');
+        setDateFrom('');
+        setDateTo('');
         setCurrentPage(1);
         showToast('Semua filter berhasil di reset', 'success');
     };
@@ -518,6 +568,8 @@ return (
 
             <div className="h-4 w-px bg-outline-variant/40" />
 
+            <ThemeToggle />
+
             {/* Profile Dropdown */}
             <div className="relative">
               <button
@@ -645,6 +697,10 @@ return (
                   <span className="text-3xl font-bold text-on-surface tracking-tight">
                     {formatNumber(kpi.totalCount)}
                   </span>
+                  <p className="mt-1 text-[11px] text-on-surface-variant">
+                    {formatNumber(kpi.paidCount)} Lunas · {formatNumber(kpi.pendingCount)} Menunggu ·{' '}
+                    {formatNumber(kpi.cancelledCount)} Batal/Gagal
+                  </p>
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary-container/25" />
               </div>
@@ -664,6 +720,9 @@ return (
                     {formatNumber(kpi.totalRevenue)}
                   </span>
                 </div>
+                <p className="mt-1 text-[11px] text-on-surface-variant">
+                  Hanya transaksi lunas yang dihitung
+                </p>
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#006c49]/30" />
               </div>
             </div>
@@ -713,6 +772,37 @@ return (
                   </select>
                 </div>
 
+                <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface-container-low text-xs">
+                  <Calendar className="w-3.5 h-3.5 text-on-surface-variant" />
+                  <span className="text-on-surface-variant font-medium">Tanggal:</span>
+                  <select
+                    value={datePreset}
+                    onChange={(e) => {
+                      const preset = e.target.value;
+                      if (
+                        preset === 'all' ||
+                        preset === 'today' ||
+                        preset === 'yesterday' ||
+                        preset === 'last7days' ||
+                        preset === 'thisMonth' ||
+                        preset === 'custom'
+                      ) {
+                        setDatePreset(preset);
+                      }
+                      setCurrentPage(1);
+                    }}
+                    aria-label="Filter tanggal transaksi"
+                    className="bg-transparent font-semibold text-on-surface focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">Semua Tanggal</option>
+                    <option value="today">Hari Ini</option>
+                    <option value="yesterday">Kemarin</option>
+                    <option value="last7days">7 Hari Terakhir</option>
+                    <option value="thisMonth">Bulan Ini</option>
+                    <option value="custom">Rentang Tanggal</option>
+                  </select>
+                </div>
+
                 <button
                   type="button"
                   onClick={handleResetFilters}
@@ -723,6 +813,42 @@ return (
                 </button>
               </div>
             </div>
+
+            {datePreset === 'custom' && (
+              <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-100 flex flex-wrap items-center gap-3">
+                <span className="text-xs font-semibold text-on-surface-variant">
+                  Rentang tanggal:
+                </span>
+                <label className="flex items-center gap-2 text-xs text-on-surface-variant">
+                  Dari
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    max={dateTo || undefined}
+                    onChange={(e) => {
+                      setDateFrom(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    aria-label="Tanggal mulai"
+                    className="px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary-container"
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-xs text-on-surface-variant">
+                  Sampai
+                  <input
+                    type="date"
+                    value={dateTo}
+                    min={dateFrom || undefined}
+                    onChange={(e) => {
+                      setDateTo(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    aria-label="Tanggal akhir"
+                    className="px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary-container"
+                  />
+                </label>
+              </div>
+            )}
 
             {/* Panel Filter Lanjutan (Toggleable) */}
             {showAdvancedFilter && (
@@ -743,7 +869,7 @@ return (
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider">
                       Rentang Nominal Harga
@@ -775,38 +901,6 @@ return (
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider">
-                      Tanggal Transaksi
-                    </label>
-                    <input
-                      type="date"
-                      value={dateFilter}
-                      onChange={(e) => {
-                        setDateFilter(e.target.value);
-                        setCurrentPage(1);
-                      }}
-                      className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary-container"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider">
-                      Shift Kasir
-                    </label>
-                    <select
-                      value={shiftFilter}
-                      onChange={(e) => {
-                        setShiftFilter(e.target.value);
-                        setCurrentPage(1);
-                      }}
-                      className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary-container cursor-pointer"
-                    >
-                      <option value="all">Semua Shift Operasional</option>
-                      <option value="pagi">Pagi (07:00 - 15:00)</option>
-                      <option value="sore">Sore / Malam (15:00 - 23:00)</option>
-                    </select>
-                  </div>
                 </div>
               </div>
             )}
@@ -839,6 +933,9 @@ return (
                       <th className="py-3.5 px-4 font-semibold text-center">
                         Metode Bayar
                       </th>
+                      <th className="py-3.5 px-4 font-semibold text-center">
+                        Status
+                      </th>
                       <th className="py-3.5 px-4 font-semibold text-right">
                         Total Transaksi
                       </th>
@@ -852,7 +949,7 @@ return (
                     {loading ? (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={8}
                           className="py-12 text-center text-sm text-on-surface-variant"
                         >
                           Memuat data riwayat transaksi...
@@ -861,7 +958,7 @@ return (
                     ) : paginationOrders.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={8}
                           className="py-12 text-center text-sm text-on-surface-variant"
                         >
                           Belum ada transaksi yang sesuai dengan filter pencarian.
@@ -955,6 +1052,24 @@ return (
                               )}
                             </td>
 
+                            <td className="py-3.5 px-4 align-top text-center whitespace-nowrap">
+                              <span
+                                className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                                  order.status === 'PAID'
+                                    ? 'bg-[#cdebdc] text-[#005236]'
+                                    : isPending
+                                      ? 'bg-[#fff0c2] text-[#6e4b00]'
+                                      : 'bg-[#ffdad6] text-[#93000a]'
+                                }`}
+                              >
+                                {order.status === 'PAID'
+                                  ? 'Lunas'
+                                  : isPending
+                                    ? 'Menunggu'
+                                    : 'Batal / Gagal'}
+                              </span>
+                            </td>
+
                             <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
                               <span
                                 className={`font-bold ${
@@ -1033,12 +1148,7 @@ return (
                   </button>
 
                   <div className="flex items-center gap-1">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1)
-                      .slice(
-                        Math.max(0, safeCurrentPage - 3),
-                        Math.min(totalPages, safeCurrentPage + 2)
-                      )
-                      .map((page) => (
+                    {visiblePageNumbers.map((page) => (
                         <button
                           key={page}
                           type="button"

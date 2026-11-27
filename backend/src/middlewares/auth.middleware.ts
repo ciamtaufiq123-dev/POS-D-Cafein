@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { JWT_SECRET } from '../config/env';
 import { JwtPayLoadUser } from '../types/express';
-
-const JWT_SECRET =process.env.JWT_SECRET || 'rahasia_super_aman_pos_dcafein_2026';
 
 export const authenticate = (req: Request, res: Response, next:NextFunction): void  => {
     const authHeader = req.headers.authorization;

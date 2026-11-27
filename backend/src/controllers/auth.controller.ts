@@ -2,9 +2,8 @@ import { Request, Response} from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../config/db';
+import { JWT_SECRET } from '../config/env';
 import { LoginInput } from '../schemas/auth.schema';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'rahasia_super_aman';
 
 export const Login = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -42,6 +41,21 @@ export const Login = async (req: Request, res: Response): Promise<void> => {
     }
 };
 
-export const getMe = async (req: Request, res: Response ): Promise<void> => {
-    res.json({ user: req.user });
+export const getMe = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: req.user!.id },
+            select: { id: true, name: true, email: true, role: true },
+        });
+
+        if (!user) {
+            res.status(401).json({ message: 'Akun tidak ditemukan' });
+            return;
+        }
+
+        res.json({ user });
+    } catch (error) {
+        console.error('Get current user error:', error);
+        res.status(500).json({ message: 'Gagal memuat profil pengguna' });
+    }
 };
